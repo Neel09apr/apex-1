@@ -58,13 +58,26 @@ WEIGHTS = {"fit": 0.40, "timing": 0.30, "engagement": 0.20, "reachability": 0.10
 TIER_A_MIN, TIER_B_MIN = 70, 45
 
 # --- Unify ---------------------------------------------------------------
-# Verified: base URL and the x-api-key auth header (docs.unifygtm.com/developers).
-# NOT verified: the path for writing a *record* onto a custom object. Confirm
-# against docs.unifygtm.com/llms.txt and fix this one line. Everything else in
-# write_to_unify() is correct regardless.
+# CONFIRMED 2026-08-14 against docs.unifygtm.com/developers/api/data/overview.md
+# and .../records/create.md: base URL, the X-Api-Key header, and
+# "POST /objects/{object_name}/records" all match what was guessed.
+#
+# What did NOT match: the OpenAPI schema (CreateRecordRequest) requires the
+# attributes wrapped in a top-level "data" object, not sent flat. The docs
+# page's own prose example shows a flat body -- the schema is authoritative.
+# write_to_unify() wraps at the call site; unify_payload() itself stays flat
+# so dry-run output, the write ledger, and check_write_payload() are unaffected.
 UNIFY_BASE = "https://api.unifygtm.com/data/v1"
-UNIFY_RECORD_PATH = "/objects/{api_name}/records"   # <-- CONFIRM
+UNIFY_RECORD_PATH = "/objects/{api_name}/records"
 UNIFY_OBJECT = "gtm_decision"
+
+# RESOLVED: .../records/create.md shows relationship attributes only for
+# standard objects (person -> company via {"match": {...}}); custom-object
+# relationship support is not confirmed there. We don't need one anyway -- the
+# Play branches on ai_gate on THIS record directly, never by traversing a link.
+# Sent as a plain text attribute "source_record_id" (not "record_id", which
+# would collide with gtm_decision's own Unify-assigned record id). Add a text
+# field named "source_record_id" to the object.
 
 # Lawful basis per jurisdiction.
 #
@@ -572,7 +585,7 @@ def score_lead(client, lead, rubric, recorded=None):
 
 def unify_payload(r):
     return {
-        "record_id": r["record_id"],
+        "source_record_id": r["record_id"],
         "ai_gate": r["gate"],                    # send | hold_for_approval | suppress | nurture
         "ai_tier": r["tier"],
         "ai_score": r["score"],
@@ -605,14 +618,16 @@ def write_to_unify(rows, dry_run=True):
             for line in f:
                 if line.strip():
                     p = json.loads(line)
-                    seen.add((p["record_id"], p["ai_rubric_version"],
+                    seen.add((p["source_record_id"], p["ai_rubric_version"],
                               p.get("_signal_key")))
 
     pending = [r for r in rows
                if (r["record_id"], r["rubric_version"], r["signal_key"]) not in seen]
     if dry_run:
         for r in pending:
-            print(json.dumps(unify_payload(r), ensure_ascii=False))
+            # Wrapped exactly as the real POST body would be — dry-run output
+            # is only trustworthy as a preview if it matches the wire shape.
+            print(json.dumps({"data": unify_payload(r)}, ensure_ascii=False))
         return 0
 
     import requests
@@ -625,7 +640,8 @@ def write_to_unify(rows, dry_run=True):
     with open(ledger, "a", encoding="utf-8") as f:
         for r in pending:
             body = unify_payload(r)
-            resp = requests.post(url, headers={"x-api-key": key}, json=body, timeout=20)
+            resp = requests.post(url, headers={"x-api-key": key},
+                                 json={"data": body}, timeout=20)
             if resp.status_code >= 300:
                 print(f"  !! {r['record_id']}: {resp.status_code} {resp.text[:200]}",
                       file=sys.stderr)

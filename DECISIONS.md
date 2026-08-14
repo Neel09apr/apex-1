@@ -86,7 +86,7 @@ Unify's proof point is Perplexity: $1.7M pipeline, 75+ opportunities, 3 months, 
 
 ## Open items
 
-1. **`UNIFY_RECORD_PATH` in agent.py is unverified.** Unify's base URL (`api.unifygtm.com/data/v1`) and `x-api-key` header are confirmed; the record-write path is not. Check `docs.unifygtm.com/llms.txt`.
+1. ~~**`UNIFY_RECORD_PATH` in agent.py is unverified.**~~ **RESOLVED 2026-08-14** — confirmed against `docs.unifygtm.com`: base URL, `X-Api-Key` header, and `POST /objects/{object_name}/records` all match. The check also found a real bug (write body needed a `{"data": {...}}` wrapper, now fixed) and a naming risk (the lead identifier is sent as `source_record_id`, not `record_id`, to avoid colliding with `gtm_decision`'s own Unify-assigned record id). Full detail in `ARCHITECTURE.md` §3.3.
 2. **`MODEL` defaults to `gpt-5.2`** via `OPENAI_MODEL`. Confirm against the account's model list.
 3. **`git init` pending** — deliberately not run. When it happens, `.gitignore` must cover `runs.jsonl`, `dead_letter.jsonl`, `unify_written.jsonl`, `crm_out.jsonl` — they will hold real prospect data after the first live run.
 4. **`OUTREACH_BASIS` needs a DPO sign-off.** DE/AT/IT/FR default to `consent_required`; sources genuinely disagree. `eval.py` asserts against a hand-written table, so changing the code alone fails the eval — deliberate.

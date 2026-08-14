@@ -71,15 +71,29 @@ the alternative is twelve requests and a confusing partial result.
 
 ## 3. Confirm the Unify write path — the other unverified thing
 
-`UNIFY_RECORD_PATH` in `agent.py` is `"/objects/{api_name}/records"`, marked
-`<-- CONFIRM`. The base URL and `x-api-key` header **are** confirmed.
+**Confirmed 2026-08-14 against `docs.unifygtm.com`.** `UNIFY_RECORD_PATH`,
+base URL, and the `X-Api-Key` header all match: `POST /objects/{object_name}/records`.
+
+**One thing the check also found and fixed:** the OpenAPI schema requires the
+attributes wrapped in a top-level `data` object — `{"data": {...}}` — not sent
+flat. The docs page's own prose example showed a flat body; the schema is
+authoritative. `write_to_unify()` and the dry-run preview both wrap correctly
+now — if you're on an older checkout, pull first.
+
+**Resolved.** `records/create.md` shows relationship attributes only for
+standard objects (person → company, via a `{"match": {...}}` query); nothing
+confirms custom objects support them, and we don't need one anyway — the Play
+branches on `ai_gate` on this record directly, never by traversing a link.
+`unify_payload()` now sends a plain text attribute `source_record_id` (not
+`record_id`, which would collide with `gtm_decision`'s own Unify-assigned
+record id).
 
 First create the custom object `gtm_decision` in Unify with these fields, text
 unless noted:
 
-`ai_gate`, `ai_tier`, `ai_basis`, `ai_jurisdiction`, `ai_confidence`,
-`ai_rationale`, `ai_evidence`, `ai_decided_at`, `ai_model_version`,
-`ai_score` (number), `ai_rubric_version` (number)
+`source_record_id`, `ai_gate`, `ai_tier`, `ai_basis`, `ai_jurisdiction`,
+`ai_confidence`, `ai_rationale`, `ai_evidence`, `ai_decided_at`,
+`ai_model_version`, `ai_score` (number), `ai_rubric_version` (number)
 
 Then write exactly one record:
 
@@ -93,9 +107,9 @@ python agent.py --limit 1 --write
 
 | Status | Meaning | Do |
 |---|---|---|
-| `404` | wrong path | check `docs.unifygtm.com/llms.txt`, fix the **one line** `UNIFY_RECORD_PATH` |
+| `404` | object name or record path wrong | confirm `UNIFY_OBJECT = "gtm_decision"` matches the object's actual API name in Unify |
 | `401` / `403` | key or scope | confirm the key has write scope on custom objects |
-| `422` | a field was rejected | usually `ai_evidence` — it is a JSON string, claims and quotes already capped at 250 chars. Check the Unify field type is text, not a picklist |
+| `422` | a field was rejected | check the field types match the list above, especially `source_record_id` (text) |
 
 Delete the test record before the demo so the run starts clean.
 

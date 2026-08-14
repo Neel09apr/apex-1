@@ -160,15 +160,27 @@ Strict mode requires `additionalProperties:false` and every property in
 `required` at every level. Refusals are first-class (`message.refusal`) and
 raise rather than degrade to a default score.
 
-### 3.3 Decision → Unify write-back  **BUILT (path unverified)**
+### 3.3 Decision → Unify write-back  **BUILT, path confirmed 2026-08-14**
 
-`POST {UNIFY_BASE}{UNIFY_RECORD_PATH}`, header `x-api-key`, custom object
-`gtm_decision`. Twelve fields: `ai_gate`, `ai_tier`, `ai_score`, `ai_basis`,
-`ai_jurisdiction`, `ai_confidence`, `ai_rationale`, `ai_evidence` (JSON string),
-`ai_decided_at`, `ai_model_version`, `ai_rubric_version`, plus `record_id`.
+`POST {UNIFY_BASE}{UNIFY_RECORD_PATH}`, header `X-Api-Key`, custom object
+`gtm_decision`, body `{"data": {...}}`. Twelve attributes inside `data`:
+`source_record_id`, `ai_gate`, `ai_tier`, `ai_score`, `ai_basis`,
+`ai_jurisdiction`, `ai_confidence`, `ai_rationale`, `ai_evidence` (JSON
+string), `ai_decided_at`, `ai_model_version`, `ai_rubric_version`.
 
-⚠️ `UNIFY_RECORD_PATH` is **unverified**. Base URL and auth header are confirmed.
-This is one line and it is the first thing to test.
+Confirmed against `docs.unifygtm.com/developers/api/data/{overview,records/create}.md`:
+base URL, `X-Api-Key` header, and `POST /objects/{object_name}/records` all
+match what was guessed. **The `data` wrapper did not** — the docs page's prose
+example showed a flat body, but the `CreateRecordRequest` OpenAPI schema
+requires the attributes nested under `data`. `write_to_unify()` and the
+dry-run preview both wrap correctly now.
+
+**Resolved.** `records/create.md` shows relationship attributes only for
+standard objects (person → company); custom-object support is unconfirmed, and
+unneeded here — the Play branches on `ai_gate` on this record directly, never
+by traversing a link. Sent as a plain text attribute, named `source_record_id`
+rather than `record_id` to avoid colliding with `gtm_decision`'s own
+Unify-assigned record id.
 
 ---
 
@@ -307,7 +319,7 @@ Dependency-ordered. Each step names how we know it worked.
 
 | # | Task | Verified by | Blocks |
 |---|---|---|---|
-| 1 | Confirm `UNIFY_RECORD_PATH`; confirm `MODEL` | One successful write; model responds | 3, 4 |
+| 1 | ~~Confirm `UNIFY_RECORD_PATH`~~ **DONE** (§3.3); ~~resolve `source_record_id`~~ **DONE**; confirm `MODEL` | One successful write; model responds | 3, 4 |
 | 2 | Test Play branching on a written-back custom field | Branch fires, latency measured | 4 |
 | 3 | Live batch → full `eval.py` | 4 model gates pass | demo |
 | 4 | Provision the four Play branches | Each gate value lands in its action | demo |
@@ -388,7 +400,8 @@ The loop terminates the moment `ai_gate` is written back.
 
 ## 10. Open items
 
-1. `UNIFY_RECORD_PATH` unverified — §3.3, blocks step 1
+1. ~~`UNIFY_RECORD_PATH` unverified~~ **RESOLVED** — §3.3, including the
+   `source_record_id` field naming
 2. `MODEL` default `gpt-5.2` unconfirmed against the account
 3. Play branch re-evaluation behaviour unknown — §5, blocks step 4
 4. `OUTREACH_BASIS` needs DPO sign-off; DE/AT/IT/FR default conservative because

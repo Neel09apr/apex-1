@@ -292,6 +292,11 @@ def check_write_payload():
             failures.append(f"{field} not truncated: {len(entry[field])} chars")
     if "_signal_key" in payload:
         failures.append("_signal_key leaked into the Unify payload")
+    if payload.get("source_record_id") != "t":
+        failures.append(f"source_record_id wrong or missing: {payload.get('source_record_id')!r}")
+    if "record_id" in payload:
+        failures.append("payload key should be 'source_record_id', not 'record_id' "
+                        "(collides with gtm_decision's own Unify-assigned id)")
 
     sig = [{"value": "Series B closed", "source": "news:crunchbase",
             "fetched_at": "2026-08-05T10:00:00Z"}]
