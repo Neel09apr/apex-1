@@ -9,6 +9,54 @@ Built for the GTM Agents hackathon, Dublin.
 
 ---
 
+## In plain terms
+
+**What Apex-1 does.** Before an automated sales tool sends a message, follows
+up, or adds someone to an outreach sequence, Apex-1 checks two things: is this
+actually a good potential customer, and are we allowed to contact them right
+now, given where they're based. If both are clearly yes, the message goes out.
+If either is unclear, it holds that person for someone on the sales team to
+look at, instead of guessing. If contacting them would be inappropriate, it
+stops it — permanently, not just "not today."
+
+It doesn't find leads, write the emails, or run the sales pipeline — Unify
+already does that well. Apex-1 is the checkpoint between "we found someone
+promising" and "we're now emailing them."
+
+**The gap in today's tools.** Most AI-powered sales tools are built in, and
+for, the US market — one country, one set of rules about who you're allowed to
+email and when. They're built to send as many good-looking messages as
+possible, as fast as possible, and they generally treat "the lead looks good"
+as the only question worth asking.
+
+That assumption breaks the moment a company sells outside its home country —
+which, for a European startup, is often true before it has ten employees.
+Different countries have different rules about contacting a stranger for
+business purposes: in some you can email first and explain later, in others
+you legally need their permission before you ever reach out. Getting this
+wrong isn't a small mistake — it can mean fines, formal complaints, and, in
+practice, having your company's emails treated as spam everywhere, not just in
+the one country where the mistake happened.
+
+A small team selling across Europe doesn't have a lawyer checking every batch
+of leads by hand, and it can't afford to stop and check manually either. So
+today, most teams either skip the check and hope, or they don't automate the
+send at all.
+
+**How Apex-1 fills it.** It's the automated version of "have someone who
+actually knows the rules glance at this before it goes out" — run on every
+lead, at whatever speed the sales team needs, with a written reason attached to
+every decision. Nothing sends without a check passing, and nothing the system
+decided is a black box: every send, hold, or do-not-contact comes with the
+evidence behind it, so if anyone — a customer, a regulator, a teammate six
+months from now — asks "why did we email this person," there's a real answer.
+
+*Everything below this point gets into how it's actually built. Start at
+§1 if you want the evidence behind the market problem, or §2 for the
+technical mechanism.*
+
+---
+
 ## 1. The problem
 
 Irish startups sell abroad from day one. A home market of 5.4 million means
