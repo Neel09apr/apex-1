@@ -1,0 +1,49 @@
+{
+  "name": "Apex-1 - Pre-Send Decision",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "trigger-1",
+      "name": "When clicking \"Execute workflow\"",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Stands in for a Unify Play (Detect) webhook firing. Swap this for a\n// Webhook trigger node pointed at Unify once that side is wired up --\n// this node exists so the workflow is runnable right now, with a real,\n// disqualified sample lead that needs no OPENAI_API_KEY to decide correctly.\n// See leads.sample.json in the Apex-1 repo for the full set.\nreturn [{\n  json: {\n    record_id: \"lead_006\",\n    email: \"ops@clearharbour.ie\",\n    company: { value: \"Clear Harbour\", source: \"crm\" },\n    domain: { value: \"clearharbour.ie\", source: \"crm\" },\n    country: { value: \"IE\", source: \"crm\" },\n    employees: { value: 260, source: \"enrichment:apollo\" },\n    industry: { value: \"B2B SaaS\", source: \"enrichment:apollo\" },\n    tech_stack: { value: [\"Salesforce\", \"Gong\"], source: \"enrichment:builtwith\" },\n    title: { value: \"Operations Manager\", source: \"crm\" },\n    signals: [{ value: \"Open role: RevOps Manager, posted 2026-07-01\", source: \"jobs:linkedin\" }],\n    engagement: { value: \"Docs, 5 visits\", source: \"firstparty:analytics\" },\n    notes: { value: \"Existing customer -- a second inbound from a different team.\", source: \"internal\" },\n    is_customer: true,\n    has_open_opp: false\n  }\n}];"
+      },
+      "id": "sample-lead-1",
+      "name": "Sample Lead (lead_006)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8000/decide",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      },
+      "id": "http-decide-1",
+      "name": "Apex-1: Decide",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [680, 300]
+    }
+  ],
+  "connections": {
+    "When clicking \"Execute workflow\"": {
+      "main": [[{ "node": "Sample Lead (lead_006)", "type": "main", "index": 0 }]]
+    },
+    "Sample Lead (lead_006)": {
+      "main": [[{ "node": "Apex-1: Decide", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": {},
+  "pinData": {}
+}
