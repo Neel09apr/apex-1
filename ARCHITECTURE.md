@@ -348,9 +348,9 @@ idempotency is our problem, not a field Unify has to carry.
 (250) in `unify_payload()`.
 
 **Bug found and fixed while doing this:** `eval.py` referenced `agent.EFFORT`,
-which does not exist — a leftover from the Anthropic port. `python eval.py`
-without `--offline` would have crashed with `AttributeError` before reaching the
-model. Directly on the step-3 path.
+which does not exist — a leftover from an earlier provider's parameter set.
+`python eval.py` without `--offline` would have crashed with `AttributeError`
+before reaching the model. Directly on the step-3 path.
 
 ### Sample leads (step 6)
 
