@@ -6,3 +6,4 @@ demo.jsonl
 __pycache__/
 .env
 *.log
+.venv/

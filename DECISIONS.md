@@ -88,10 +88,14 @@ Unify's proof point is Perplexity: $1.7M pipeline, 75+ opportunities, 3 months, 
 
 1. ~~**`UNIFY_RECORD_PATH` in agent.py is unverified.**~~ **RESOLVED 2026-08-14** — confirmed against `docs.unifygtm.com`: base URL, `X-Api-Key` header, and `POST /objects/{object_name}/records` all match. The check also found a real bug (write body needed a `{"data": {...}}` wrapper, now fixed) and a naming risk (the lead identifier is sent as `source_record_id`, not `record_id`, to avoid colliding with `gtm_decision`'s own Unify-assigned record id). Full detail in `ARCHITECTURE.md` §3.3.
 2. **`MODEL` defaults to `gpt-5.2`** via `OPENAI_MODEL`. Confirm against the account's model list.
-3. **`git init` pending** — deliberately not run. When it happens, `.gitignore` must cover `runs.jsonl`, `dead_letter.jsonl`, `unify_written.jsonl`, `crm_out.jsonl` — they will hold real prospect data after the first live run.
+3. ~~**`git init` pending**~~ **DONE** — repo is live at `github.com/Neel09apr/apex-1`. `.gitignore` covers `runs.jsonl`, `dead_letter.jsonl`, `unify_written.jsonl`, `crm_out.jsonl` (they hold real prospect data after the first live run), plus `.env`, `*.log` and `.venv/`. `runs.adversarial.jsonl` is hand-written and synthetic, so it is committed on purpose.
 4. **`OUTREACH_BASIS` needs a DPO sign-off.** DE/AT/IT/FR default to `consent_required`; sources genuinely disagree. `eval.py` asserts against a hand-written table, so changing the code alone fails the eval — deliberate.
 5. **`SUPPRESSION` is a hardcoded stub.** Point it at the real do-not-contact source before any live send.
-6. **Play branch re-evaluation is unknown.** Does a Unify Play re-check branch conditions when a custom field is written back over REST, and how fast? Blocks the four-branch workflow. Test in hour one — finding out at hour 22 kills the demo.
+5b. **Slack approval loop built, never clicked.** `Ask a human (Slack)` uses the native `sendAndWait` operation and ships `disabled` so the workflow runs without a Slack account (an unconfigured Slack node blocks the *whole* workflow from executing, not just its branch). Connect the credential, pick the channel, enable, and click both buttons once before demoing. Timeout is 24h and resolves to "still held" — never to send, never to suppress.
+5c. **`render.yaml` written, never deployed.** n8n Cloud cannot reach localhost. Deploy before wiring Cloud, and note the free plan cold-starts in ~50s — hit the URL before the demo.
+6. **Play branch re-evaluation is unknown.** Does a Unify Play re-check branch conditions when a custom field is written back over REST, and how fast? Test in hour one — finding out at hour 22 kills the demo. **No longer blocking the demo:** `n8n-workflow.json` terminates `ai_gate` in five branches without Unify's Play engine, so the four-outcome story is demonstrable either way (`N8N.md`).
+7. ~~**Low confidence never reached the gate.**~~ **FIXED 2026-08-14** — found by running the injection lead end to end. `tier_and_action()` set `recommended_action = human_review`, but `gate()` never read confidence, so an injected lead came out `ai_gate: send` — and the Play branches on the gate, not on the advisory field. Both trust checks were therefore unenforced. `gate()` now takes confidence; `eval.py` covers it.
+8. ~~**A dropped quote left its score behind.**~~ **FIXED 2026-08-14** — same run. `verify_quotes()` drops fabricated evidence but nothing rechecked the dimension scores it was supposed to justify, so a model that cited nothing real still scored 100 and gated `send` with an empty `ai_evidence` list. A send-grade score now requires at least one surviving quote. New eval gate: `unevidenced score cannot send`.
 
 Judging note: the criterion is depth of UnifyGTM and Codex usage. Our
 architecture is deliberately minimal on Unify's surface, which is correct
@@ -102,4 +106,6 @@ not the prompt.
 
 ## Status
 
-`python eval.py --offline` — 5/5 deterministic gates pass. No live model run has happened yet; no output files exist.
+`python eval.py --offline` — 10/10 deterministic gates pass. No live model run
+has happened yet. The n8n workflow is complete (Switch + five outputs) and has
+been executed end-to-end against `server.py` in replay mode.
