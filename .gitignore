@@ -5,3 +5,4 @@ crm_out.jsonl
 demo.jsonl
 __pycache__/
 .env
+*.log

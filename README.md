@@ -259,11 +259,40 @@ dropped. Record once, then rehearse and demo from the recording.
 `openai` and `requests` are imported lazily, so `eval.py --offline` runs with no
 keys and no network at all.
 
-## 8. Files
+## 8. HTTP API (optional)
+
+`agent.py` is a CLI. `server.py` wraps it in three routes so any orchestrator —
+n8n, Zapier, Make, a Unify Play's own webhook action — can call it directly,
+without a custom integration per tool:
+
+```bash
+pip install fastapi uvicorn
+python server.py
+open http://127.0.0.1:8000/docs      # interactive API docs, no extra code
+```
+
+| Route | Body | What |
+|---|---|---|
+| `GET /health` | — | model + rubric version currently configured |
+| `POST /decide` | a lead, internal shape (see `leads.sample.json`) | one decision |
+| `POST /decide/unify-webhook` | a raw Unify Play webhook payload | mapped via `from_unify_webhook()`, then decided |
+
+**Decides only — never writes to Unify.** The caller owns what happens with
+`ai_gate`; same separation the CLI already has between a dry run and
+`--write`. No decision logic lives in `server.py`; every route calls the same
+functions `eval.py` already tests. `LEADSCORE_KILL=1` is honoured here too.
+
+A disqualified lead (see §3's disqualifiers) never touches the model, so
+`/decide` is testable right now with no `OPENAI_API_KEY` at all — pass any
+disqualified sample lead (`lead_003`, `lead_006`, `lead_010`) and it responds
+correctly, offline.
+
+## 9. Files
 
 | File | What it is |
 |---|---|
 | `agent.py` | The decision layer |
+| `server.py` | Optional HTTP wrapper — §8, for n8n/Zapier/Make/direct webhook calls |
 | `eval.py` | Eval harness — 7 deterministic + 4 model gates |
 | `rubric.md` | Versioned ICP rubric (v4) — bands, weights, tiers, disqualifiers |
 | `leads.sample.json` | 12 synthetic leads, including the injection case |
