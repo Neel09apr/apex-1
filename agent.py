@@ -431,17 +431,28 @@ def us_baseline_gate(row):
                 "blocked" if row["disqualifiers_hit"] else "legitimate_interest")
 
 
-def gate(tier, basis):
+def gate(tier, basis, confidence="high"):
     """The pre-send decision. This is the value the Unify Play branches on.
 
     `suppress` means we decided no. `hold_for_approval` means we do not know
-    yet — either the law requires consent we have not got, or we cannot place
-    the lead in a jurisdiction at all. Suppress is permanent; hold is a queue a
-    human can clear. Keeping the two apart is the whole point of the layer.
+    yet — either the law requires consent we have not got, we cannot place the
+    lead in a jurisdiction at all, or the judgment itself is not trustworthy
+    enough to send on. Suppress is permanent; hold is a queue a human can
+    clear. Keeping the two apart is the whole point of the layer.
+
+    Confidence has to be read HERE, not only in tier_and_action. That function
+    sets `recommended_action = human_review`, which is advisory — the Play
+    branches on the gate, so a low-confidence lead whose gate still said `send`
+    was sent, and the human review never happened. Both of validate()'s
+    trust checks (prospect-authored evidence, and a high score left with no
+    surviving evidence) express themselves as `confidence == "low"`, so this is
+    the one place that has to honour it for either of them to bite.
     """
     if basis == "blocked":
         return "suppress"
     if basis in ("consent_required", "unknown"):
+        return "hold_for_approval"
+    if confidence == "low":
         return "hold_for_approval"
     return "send" if tier in ("A", "B") else "nurture"
 
@@ -519,6 +530,17 @@ def validate(out, lead):
     untrusted = any(e["source"] in UNTRUSTED_EVIDENCE_SOURCES for e in out["evidence"])
     confidence = "low" if untrusted and out["score"] >= TIER_B_MIN else out["confidence"]
 
+    # No evidence, no send. The dimension scores are the model's own numbers and
+    # nothing above checks them against the evidence that survived — so a model
+    # that emits a 100 and cites nothing verifiable (every quote fabricated, all
+    # of it dropped by verify_quotes) still scored high enough to send. Dropping
+    # the evidence while keeping the score it was supposed to justify is the
+    # loophole that makes the whole verification layer decorative. A send-grade
+    # score has to rest on at least one quote that was actually found in the
+    # record; otherwise it goes to a human, through the same low-confidence path.
+    if out["score"] >= TIER_B_MIN and not out["evidence"]:
+        confidence = "low"
+
     out["untrusted_evidence"] = untrusted
     out["confidence"] = confidence
     out["tier"], out["recommended_action"] = tier_and_action(out["score"], confidence)
@@ -575,7 +597,7 @@ def score_lead(client, lead, rubric, recorded=None):
                "_usage": {"input_tokens": 0, "output_tokens": 0, "cost_usd": 0.0}}
     else:
         row = {**base, **score_one(client, lead, rubric)}
-    row["gate"] = gate(row["tier"], row["outreach_basis"])
+    row["gate"] = gate(row["tier"], row["outreach_basis"], row["confidence"])
     return row
 
 
