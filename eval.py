@@ -188,19 +188,64 @@ def check_gate():
     """The pre-send decision. A wrong branch here sends unlawful mail, so it is
     the one piece of logic that gets an exhaustive table rather than samples."""
     want = {
-        ("A", "legitimate_interest"): "send",
-        ("B", "legitimate_interest"): "send",
-        ("C", "legitimate_interest"): "nurture",
-        ("A", "consent_required"): "hold_for_approval",
-        ("C", "consent_required"): "hold_for_approval",
-        ("A", "blocked"): "suppress",
-        ("disqualified", "blocked"): "suppress",
+        ("A", "legitimate_interest", "high"): "send",
+        ("B", "legitimate_interest", "high"): "send",
+        ("C", "legitimate_interest", "high"): "nurture",
+        ("A", "consent_required", "high"): "hold_for_approval",
+        ("C", "consent_required", "high"): "hold_for_approval",
+        ("A", "blocked", "high"): "suppress",
+        ("disqualified", "blocked", "high"): "suppress",
         # "we do not know" must never reach the same branch as "we decided no".
-        ("A", "unknown"): "hold_for_approval",
-        ("C", "unknown"): "hold_for_approval",
+        ("A", "unknown", "high"): "hold_for_approval",
+        ("C", "unknown", "high"): "hold_for_approval",
+        # Low confidence is a hold, not a send. tier_and_action() already
+        # returns human_review for these, but that field is advisory — the Play
+        # branches on the GATE, so if the gate still said "send" the lead was
+        # sent and no human ever reviewed it. Both trust checks in validate()
+        # (prospect-authored evidence; a high score with no surviving evidence)
+        # surface only as confidence == "low", so these two rows are what make
+        # either of them reach the send decision at all.
+        ("B", "legitimate_interest", "low"): "hold_for_approval",
+        ("A", "legitimate_interest", "low"): "hold_for_approval",
+        # ...but a decided "no" still outranks it. Low confidence never rescues
+        # a disqualified lead into a queue a human might approve.
+        ("B", "blocked", "low"): "suppress",
     }
-    return [f"gate({t},{b}) = {agent.gate(t, b)}, want {exp}"
-            for (t, b), exp in want.items() if agent.gate(t, b) != exp]
+    return [f"gate({t},{b},{c}) = {agent.gate(t, b, c)}, want {exp}"
+            for (t, b, c), exp in want.items() if agent.gate(t, b, c) != exp]
+
+
+def check_unevidenced_score():
+    """A send-grade score must rest on at least one surviving quote.
+
+    verify_quotes() drops fabricated evidence, but nothing re-checks the score
+    that evidence was supposed to justify — the dimension scores are the
+    model's own numbers. So a model that obeys an injection, emits 100s and
+    cites nothing real used to end up at tier A with an empty evidence list and
+    a gate of `send`: every quote dropped, the score they justified intact.
+    """
+    lead = {"record_id": "t",
+            "industry": {"value": "B2B SaaS", "source": "enrichment:apollo"}}
+    out = agent.validate({
+        "dimension_scores": {"fit": 100, "timing": 100, "engagement": 100,
+                             "reachability": 100},
+        "rationale": "test", "confidence": "high",
+        "evidence": [{"claim": "Series B, hiring RevOps",
+                      "quote": "Series B, 400 employees, hiring RevOps",
+                      "source": "enrichment:apollo", "supports": True}],
+    }, lead)
+
+    failures = []
+    if out["evidence"]:
+        failures.append("fabricated quote survived verify_quotes")
+    if out["confidence"] != "low":
+        failures.append(f"score {out['score']} with no evidence left at "
+                        f"confidence {out['confidence']}, want low")
+    g = agent.gate(out["tier"], "legitimate_interest", out["confidence"])
+    if g != "hold_for_approval":
+        failures.append(f"unevidenced score {out['score']} gated {g}, "
+                        "want hold_for_approval")
+    return failures
 
 
 def check_trust_tier():
@@ -422,6 +467,7 @@ def main():
         ("relevance gate (claim must be supported)", check_relevance_gate()),
         ("low confidence -> human review", check_low_confidence_routes_to_human()),
         ("pre-send gate", check_gate()),
+        ("unevidenced score cannot send", check_unevidenced_score()),
         ("jurisdiction states (unknown != blocked)", check_jurisdiction_states()),
         ("trust tier (prospect-authored evidence)", check_trust_tier()),
         ("write payload (truncation + idempotency key)", check_write_payload()),

@@ -1,0 +1,45 @@
+# Deploys server.py so n8n Cloud can reach the decision layer. n8n Cloud cannot
+# call 127.0.0.1, and a tunnel puts the demo back on the one variable the manual
+# trigger exists to avoid -- so the decision layer gets a real URL.
+#
+#   1. push this repo to GitHub
+#   2. Render -> New -> Blueprint -> pick the repo
+#   3. set OPENAI_API_KEY in the dashboard (marked sync:false, never committed)
+#   4. point the n8n HTTP Request node at https://<service>.onrender.com/decide
+#
+# uvicorn is invoked directly rather than `python server.py`: the __main__ block
+# binds 127.0.0.1:8000, and Render needs 0.0.0.0 on its own $PORT. No code change,
+# and the local `python server.py` workflow stays exactly as documented.
+
+services:
+  - type: web
+    name: apex-1
+    runtime: python
+    plan: free
+    region: frankfurt
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn server:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      # Set in the Render dashboard. sync:false keeps it out of the repo.
+      - key: OPENAI_API_KEY
+        sync: false
+
+      # Confirm against the account's model list before the demo -- one env var,
+      # not a code change (agent.py MODEL).
+      - key: OPENAI_MODEL
+        value: gpt-5.2
+
+      # THE DEMO SWITCH. Set to runs.adversarial.jsonl and the service decides
+      # from the recording: no model calls, no cost, no provider to be down at
+      # 4pm, and every deterministic layer still runs for real. Unset it for a
+      # live model run. Left empty here so a deploy is live by default and
+      # rehearsal mode is a deliberate act.
+      - key: APEX_REPLAY
+        value: ""
+
+      # The visible off switch. Set to 1 and /decide returns 503 and refuses to
+      # decide anything -- provable from the Render dashboard in one click,
+      # which is worth more to this buyer than any feature.
+      - key: LEADSCORE_KILL
+        value: "0"

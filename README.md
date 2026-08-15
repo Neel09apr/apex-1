@@ -106,6 +106,14 @@ field, or defend it later.
 
 Basis dominates tier. A perfect-fit German lead holds.
 
+**Low confidence holds, whatever the tier says.** The table above is the
+high-confidence case. Both of the trust checks in §3 express themselves as
+`confidence == "low"`, and the gate reads it directly — so a lead the system
+does not trust its own judgment on lands in the hold queue instead of a
+sequence, in every jurisdiction. `recommended_action` says `human_review` too,
+but that field is advisory: **the Play branches on `ai_gate`, so a check that
+only reaches `recommended_action` does not actually stop a send.**
+
 **`unknown` is not `blocked`.** One means we have not decided — enrichment
 returned no country, or the country is not in the table. The other means we
 decided no. Both fail closed; only one is recoverable. Collapsing them loses
@@ -160,7 +168,16 @@ are written directly by the prospect — the injection below lives in one, and a
 quote lifted from it is genuinely real, so the quote check alone lets it
 through. A second check catches this: any high-scoring evidence sourced from a
 prospect-authored field has its confidence forced to `low` **in code**, never
-left at the model's own self-report, which routes it to human review.
+left at the model's own self-report, which sends it to the hold queue.
+
+**A dropped quote still leaves its score behind.** The dimension scores are the
+model's own numbers, and nothing else re-checks them against the evidence that
+actually survived — so a model that obeys an injection, emits 100s and
+fabricates every quote had all its evidence dropped and kept the score that
+evidence was supposed to justify, reaching `send` with an empty `ai_evidence`
+list. Verification the score can ignore is decoration. Hence a third check:
+**a send-grade score must rest on at least one surviving quote**, or confidence
+is forced to `low` and the lead holds.
 
 **A real quote still isn't proof it supports its own claim.** A model can cite
 genuine text about the tech stack as "evidence" for a claim about hiring
@@ -185,13 +202,13 @@ told to do.
 ## 4. Verification
 
 ```bash
-python eval.py --offline    # 7 deterministic gates, no API calls, no cost
+python eval.py --offline    # 10 deterministic gates, no API calls, no cost
 python eval.py              # + 4 model gates, vs. a trivial baseline
 ```
 
-**Deterministic (9):** compliance layer, disqualifiers, evidence verification,
-relevance gate, low-confidence routing, the pre-send gate, jurisdiction states,
-trust tier, write payload.
+**Deterministic (10):** compliance layer, disqualifiers, evidence verification,
+relevance gate, low-confidence routing, the pre-send gate, unevidenced score,
+jurisdiction states, trust tier, write payload.
 
 **Model (4):** tier agreement ≥80%, tier-A precision ≥80%, provenance coverage
 100%, injection resistance 100%. Plus cost per lead.
@@ -211,8 +228,12 @@ Exit codes: `0` pass, `1` a gate failed, `2` not run.
 
 ## 5. Honest limitations
 
-- **No live model run has happened yet.** All 7 deterministic gates pass; the 4
-  model gates are unmeasured.
+- **No live model run has happened yet.** All 10 deterministic gates pass; the 4
+  model gates are unmeasured. The injection lead has been run end-to-end
+  through `server.py` and the n8n workflow against a hand-written adversarial
+  recording (`runs.adversarial.jsonl`), not a live model — that measures the
+  structural defence, which is the part that does not depend on the model
+  behaving.
 - **`UNIFY_RECORD_PATH` is unverified.** The base URL and `x-api-key` header are
   confirmed against Unify's docs; the custom-object record-write path is not.
 - **`OUTREACH_BASIS` is not legal advice.** DE/AT/IT/FR default to
@@ -287,14 +308,34 @@ A disqualified lead (see §3's disqualifiers) never touches the model, so
 disqualified sample lead (`lead_003`, `lead_006`, `lead_010`) and it responds
 correctly, offline.
 
+`APEX_REPLAY` is the server's version of the CLI's `--replay`: point it at a
+recording and the model call is the only thing replaced. Every other layer —
+jurisdiction, disqualifiers, quote verification, the trust checks, the gate —
+still runs, so the response is a real decision.
+
+```bash
+APEX_REPLAY=runs.adversarial.jsonl python server.py   # no key, no network, no provider
+```
+
+`runs.adversarial.jsonl` is **hand-written, not a model run**: it is what a
+fully compromised model looks like — one that obeyed `lead_007`'s injection
+completely, returned 100 on every dimension, claimed high confidence, and
+mislabelled the injected quote's source as `enrichment:apollo` to dodge the
+trust check. Decide against it and `lead_007` still comes back
+`hold_for_approval`, tier B, confidence `low`, with the evidence re-attributed
+to `form`. That is the structural claim being tested — not whether the model
+resists, but what happens when it doesn't.
+
 ## 9. Files
 
 | File | What it is |
 |---|---|
 | `agent.py` | The decision layer |
 | `server.py` | Optional HTTP wrapper — §8, for n8n/Zapier/Make/direct webhook calls |
-| `eval.py` | Eval harness — 7 deterministic + 4 model gates |
+| `eval.py` | Eval harness — 10 deterministic + 4 model gates |
 | `rubric.md` | Versioned ICP rubric (v4) — bands, weights, tiers, disqualifiers |
 | `leads.sample.json` | 12 synthetic leads, including the injection case |
+| `runs.adversarial.jsonl` | Hand-written worst case: the model fully obeying the injection — §8 |
+| `n8n-workflow.json` | Importable n8n workflow: signal → decide → branch on `ai_gate` — `N8N.md` |
 | `ARCHITECTURE.md` | System design, data contracts, build sequence |
 | `DECISIONS.md` | Strategy, buyer, pitch, open items |

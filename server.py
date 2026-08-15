@@ -44,6 +44,14 @@ app = FastAPI(
 _rubric = None
 _client = None
 
+# Same escape hatch the CLI has as --replay: swap the model call for a recorded
+# judgment and let every other layer run for real. Set APEX_REPLAY=<file> and a
+# demo needs no key, no network and no provider that might be down at 4pm --
+# jurisdiction, disqualifiers, quote verification, the trust checks and the gate
+# all still execute, so this stays a real decision rather than a playback.
+_recorded = (agent.load_recorded(os.environ["APEX_REPLAY"])
+             if os.environ.get("APEX_REPLAY") else None)
+
 
 def _load_rubric():
     global _rubric
@@ -77,7 +85,7 @@ def _decide(lead: dict) -> dict:
     # Cheap, pure, safe to call again inside score_lead: decides whether this
     # request needs the model at all, so a disqualified lead never pays for
     # (or requires a key for) an OpenAI client it was never going to use.
-    needs_model = not agent.disqualify(lead)
+    needs_model = not agent.disqualify(lead) and _recorded is None
     client = None
     if needs_model:
         try:
@@ -86,7 +94,7 @@ def _decide(lead: dict) -> dict:
             raise HTTPException(503, f"model unavailable: {exc}") from exc
 
     try:
-        row = agent.score_lead(client, lead, _load_rubric())
+        row = agent.score_lead(client, lead, _load_rubric(), recorded=_recorded)
     except Exception as exc:
         raise HTTPException(502, f"{lead['record_id']}: {exc}") from exc
 
