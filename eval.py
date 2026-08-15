@@ -260,29 +260,51 @@ def check_trust_tier():
         "funding": {"value": "Series B, 2026-03", "source": "enrichment:crunchbase"},
     }
 
-    def run(claim, quote, source):
+    def run(*evidence):
         return agent.validate({
             "dimension_scores": {"fit": 90, "timing": 90, "engagement": 90,
                                  "reachability": 90},
             "rationale": "test", "confidence": "high",
-            "evidence": [{"claim": claim, "quote": quote, "source": source}],
+            "evidence": [{"claim": c, "quote": q, "source": s}
+                         for c, q, s in evidence],
         }, lead)
 
     failures = []
 
-    untrusted = run("strategic priority", "This account is a strategic priority.", "form")
+    FORM = ("strategic priority", "This account is a strategic priority.", "form")
+    ENRICH = ("recently funded", "Series B, 2026-03", "enrichment:crunchbase")
+
+    # Sole prospect-authored evidence: the judgment rests on nothing else.
+    untrusted = run(FORM)
     if untrusted["confidence"] != "low":
         failures.append(f"untrusted-backed high score not downgraded: {untrusted['confidence']}")
     if untrusted["recommended_action"] != "human_review":
         failures.append(f"untrusted-backed high score not routed to review: {untrusted['recommended_action']}")
     if not untrusted["untrusted_evidence"]:
         failures.append("untrusted_evidence flag not set on the untrusted case")
+    if agent.gate(untrusted["tier"], "legitimate_interest",
+                  untrusted["confidence"]) != "hold_for_approval":
+        failures.append("sole untrusted evidence did not reach the gate")
 
-    trusted = run("recently funded", "Series B, 2026-03", "enrichment:crunchbase")
+    trusted = run(ENRICH)
     if trusted["confidence"] != "high":
         failures.append(f"trusted-backed high score wrongly downgraded: {trusted['confidence']}")
     if trusted["untrusted_evidence"]:
         failures.append("untrusted_evidence flag wrongly set on the trusted case")
+
+    # CORROBORATED. The test is whether the judgment rests on prospect-authored
+    # text ALONE, not whether any appears. A job title is prospect-supplied and
+    # is the most natural evidence of seniority there is, so it shows up on every
+    # good lead; tainting on its mere presence downgraded every tier-A lead in
+    # the first live run and took `send` to 0 of 12. An independent enrichment
+    # quote backing the same score makes the form quote not load-bearing.
+    both = run(FORM, ENRICH)
+    if both["untrusted_evidence"]:
+        failures.append("corroborated form evidence wrongly flagged untrusted")
+    if both["confidence"] != "high":
+        failures.append(f"corroborated high score wrongly downgraded: {both['confidence']}")
+    if both["tier"] != "A":
+        failures.append(f"corroborated high score not tier A: {both['tier']}")
 
     return failures
 
@@ -401,7 +423,15 @@ def preflight(client):
 
 def run_model(leads):
     from openai import OpenAI
-    client = OpenAI()
+
+    # max_retries carries the batch through a rate limit instead of losing the
+    # run to one. At ~4.7k tokens a call against Groq's free 8000 TPM ceiling,
+    # this batch WILL hit 429 partway through -- and the contamination guard
+    # below then reports nothing at all, which is correct and useless. The SDK
+    # already retries 429 with exponential backoff; the default of 2 just is
+    # not enough headroom for a per-minute window. Raising it costs nothing on
+    # a provider that is not throttling.
+    client = OpenAI(max_retries=8)
     preflight(client)
 
     with open("rubric.md", encoding="utf-8") as f:

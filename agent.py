@@ -527,7 +527,23 @@ def validate(out, lead):
     # self-reported confidence: it is forced to "low" here, which routes it to
     # human_review through the existing low-confidence path in tier_and_action
     # rather than a new one.
-    untrusted = any(e["source"] in UNTRUSTED_EVIDENCE_SOURCES for e in out["evidence"])
+    # ALL, not ANY — corroboration is the test, not contamination.
+    #
+    # `any()` looked stricter and was simply wrong. A prospect's job title lives
+    # in a form field, and the title is the most natural evidence there is for
+    # "senior enough to buy", so the model cites it on every good lead. One such
+    # quote alongside five independent enrichment quotes tainted the whole
+    # judgment: in the first live run all five tier-A leads were downgraded to B
+    # by their own job title, and `send` came out 0 of 12. A pre-send layer that
+    # never sends is an off switch.
+    #
+    # The real question is not "did any prospect-authored text appear" but "does
+    # this judgment rest on prospect-authored text alone". Independent sources
+    # corroborating the same score make a planted quote not load-bearing.
+    # lead_007's adversarial case is unaffected: its only surviving evidence IS
+    # the injection, so every quote is untrusted and it still holds.
+    untrusted = bool(out["evidence"]) and all(
+        e["source"] in UNTRUSTED_EVIDENCE_SOURCES for e in out["evidence"])
     confidence = "low" if untrusted and out["score"] >= TIER_B_MIN else out["confidence"]
 
     # No evidence, no send. The dimension scores are the model's own numbers and

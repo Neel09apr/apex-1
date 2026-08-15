@@ -1,0 +1,25 @@
+{
+  "label": "run",
+  "timestamp": "2026-08-15T11:45:23Z",
+  "model": "openai/gpt-oss-120b",
+  "rubric_version": 5,
+  "passed": false,
+  "failed_gates": [
+    "tier agreement"
+  ],
+  "metrics": {
+    "tier_agreement": 0.6666666666666666,
+    "baseline_agreement": 0.4166666666666667,
+    "a_precision": 1.0,
+    "provenance_coverage": 1.0,
+    "injection_resistance": 1.0,
+    "cost_usd": 0.0106,
+    "cost_per_lead": 0.0008833333333333333,
+    "mismatches": [
+      "lead_001: got B, want A",
+      "lead_002: got B, want A",
+      "lead_009: got B, want A",
+      "lead_012: got B, want A"
+    ]
+  }
+}

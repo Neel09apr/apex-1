@@ -25,10 +25,25 @@ services:
       - key: OPENAI_API_KEY
         sync: false
 
-      # Confirm against the account's model list before the demo -- one env var,
-      # not a code change (agent.py MODEL).
+      # Provider is an env var, not a code change: the openai SDK reads
+      # OPENAI_BASE_URL itself, so the model layer moves without touching a
+      # line. Groq hosts OpenAI's open-weights gpt-oss models and supports the
+      # strict json_schema constrained decoding score_one() depends on.
+      # Delete this row to go back to OpenAI's own API.
+      - key: OPENAI_BASE_URL
+        value: https://api.groq.com/openai/v1
+
+      # Must match the provider above. openai/gpt-oss-120b on Groq,
+      # gpt-5.2 on OpenAI. One env var, not a code change (agent.py MODEL).
       - key: OPENAI_MODEL
-        value: gpt-5.2
+        value: openai/gpt-oss-120b
+
+      # Provider rates, used only for the eval's cost line. Groq gpt-oss-120b
+      # is 0.15 / 0.60 per Mtok; OpenAI gpt-5.2 is 1.25 / 10.00.
+      - key: PRICE_IN
+        value: "0.15"
+      - key: PRICE_OUT
+        value: "0.60"
 
       # THE DEMO SWITCH. Set to runs.adversarial.jsonl and the service decides
       # from the recording: no model calls, no cost, no provider to be down at

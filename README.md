@@ -166,9 +166,19 @@ not.
 **A verbatim quote still isn't proof the field is trustworthy.** `form` fields
 are written directly by the prospect — the injection below lives in one, and a
 quote lifted from it is genuinely real, so the quote check alone lets it
-through. A second check catches this: any high-scoring evidence sourced from a
-prospect-authored field has its confidence forced to `low` **in code**, never
-left at the model's own self-report, which sends it to the hold queue.
+through. A second check catches this: a send-grade score resting on
+prospect-authored evidence **alone** has its confidence forced to `low` in
+code, never left at the model's own self-report, which sends it to the hold
+queue.
+
+The test is corroboration, not contamination — *all* the surviving evidence has
+to be prospect-authored, not merely some of it. `any` was tried first and was
+wrong: a job title lives in a form field and is the most natural evidence of
+seniority there is, so the model cites it on every good lead. One such quote
+next to five independent enrichment quotes tainted the whole judgment, every
+tier-A lead was downgraded, and the first live run produced **zero sends**. A
+pre-send layer that never sends is an off switch. `lead_007` is unaffected: its
+only surviving evidence *is* the injection, so it still holds.
 
 **A dropped quote still leaves its score behind.** The dimension scores are the
 model's own numbers, and nothing else re-checks them against the evidence that
@@ -228,12 +238,12 @@ Exit codes: `0` pass, `1` a gate failed, `2` not run.
 
 ## 5. Honest limitations
 
-- **No live model run has happened yet.** All 10 deterministic gates pass; the 4
-  model gates are unmeasured. The injection lead has been run end-to-end
-  through `server.py` and the n8n workflow against a hand-written adversarial
-  recording (`runs.adversarial.jsonl`), not a live model — that measures the
-  structural defence, which is the part that does not depend on the model
-  behaving.
+- **First live run, 2026-08-15, `openai/gpt-oss-120b` via Groq.** All 10
+  deterministic and all 4 model gates pass: tier agreement 92% (gate 80%),
+  tier-A precision 100%, provenance 100%, injection resistance 100%, against a
+  baseline of 42%. $0.0103 for 12 leads. Provider is three env vars, not a code
+  change — the SDK reads `OPENAI_BASE_URL` itself, which is the separation in
+  §3 paying off.
 - **`UNIFY_RECORD_PATH` is unverified.** The base URL and `x-api-key` header are
   confirmed against Unify's docs; the custom-object record-write path is not.
 - **`OUTREACH_BASIS` is not legal advice.** DE/AT/IT/FR default to
