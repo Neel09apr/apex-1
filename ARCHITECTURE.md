@@ -265,8 +265,14 @@ self-report:
 
 | Check | Catches |
 |---|---|
-| Prospect-authored evidence at a send-grade score | A verbatim quote that is real but adversary-planted — `lead_007` |
+| A send-grade score resting on prospect-authored evidence **alone** | A verbatim quote that is real but adversary-planted — `lead_007` |
 | A send-grade score with **no surviving evidence** | A model that fabricated every quote, had them all dropped, and kept the score they were supposed to justify |
+
+Corroboration, not contamination, is the test in the first row: *all* the
+surviving evidence must be prospect-authored. `any` was the original rule and
+it was wrong — a job title is form-sourced and is the most natural evidence of
+seniority, so it appears on every good lead. The first live run downgraded all
+five tier-A leads on their own job titles and produced zero sends.
 
 The second was the deeper hole. `verify_quotes()` drops bad evidence but nothing
 re-checked the dimension scores it was meant to support, so a model citing
