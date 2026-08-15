@@ -33,18 +33,19 @@ The three constraints that follow, and what each buys in design:
 ## 2. System context
 
 ```
-      Unify (Detect)                Apex-1                     Unify (Engage)
- ┌───────────────────────┐   ┌──────────────────────┐   ┌────────────────────┐
- │ signal fires          │   │ deterministic layer  │   │ Play branches on   │
- │ waterfall enrichment  │──▶│  jurisdiction        │──▶│ ai_gate, 4 ways    │
- │ Play webhook          │   │  disqualifiers       │   │                    │
- └───────────────────────┘   │  ───────────────     │   │ send  → sequence   │
-                             │ model layer (Codex)  │   │ hold  → Slack      │
-                             │  fit + timing        │   │ suppr → DNC list   │
-                             │  sourced evidence    │   │ nurt  → nurture    │
-                             │  ───────────────     │   └────────────────────┘
-                             │ gate + audit record  │
-                             └──────────────────────┘
+   callers                        Apex-1                        outcomes
+ ┌──────────────┐        ┌──────────────────────┐        ┌────────────────────┐
+ │ Unify Play   │        │ deterministic layer  │        │ send  → sequence   │
+ │  (webhook)   │        │  jurisdiction        │        │ hold  → a human    │
+ │              │        │  disqualifiers       │        │ suppr → DNC list   │
+ │ n8n / Zapier │───────▶│  ───────────────     │───────▶│ nurt  → nurture    │
+ │  (HTTP)      │        │ model layer (Codex)  │ ai_gate│ ?     → fail closed│
+ │              │        │  fit + timing        │        └────────────────────┘
+ │ Claude/Codex │        │  sourced evidence    │
+ │  (MCP)       │        │  ───────────────     │
+ └──────────────┘        │ gate + audit record  │
+                         └──────────────────────┘
+                            decides, never sends
 ```
 
 **The load-bearing rule:** policy and arithmetic never touch the model. The
@@ -52,13 +53,25 @@ model returns four dimension scores and evidence; code computes the weighted
 score, the tier, the lawful basis and the gate. A hallucinating model costs a
 mis-scored lead. A model deciding lawful basis costs a DPC complaint.
 
+**The second rule, once there is more than one caller:** the decision layer
+never sends. Every caller owns what happens with `ai_gate` — the CLI needs
+`--write`, `server.py` has no write path at all, and an MCP client only ever
+receives an answer. One decision, many consumers, no side effects.
+
 ### Layer ownership
 
 | Layer | Owns | Never touches |
 |---|---|---|
 | Unify | signals, enrichment, sequences, deliverability, reply routing, Slack | the decision |
+| Orchestrator (n8n) | routing on `ai_gate`, retries, the approval round-trip | what goes in the field |
 | Python | jurisdiction, basis, disqualifiers, weights, tier, **gate** | unstructured judgment |
 | Codex | fit/timing judgment, rationale, evidence | score, tier, action, gate |
+
+The orchestrator row is the one that changed. Unify's own Play engine was
+assumed to be the only consumer; in practice most GTM teams already run n8n
+around Unify, and `server.py` makes the decision callable by any of them. That
+turns "integrate with Unify" into "be one node in the workflow they already
+have", which is a materially easier thing to sell.
 
 ---
 
@@ -221,32 +234,157 @@ Borrowed from `earshot/answer.py` in the AdversarialCI repo, which draws the
 same line between `confidence: "error"` (we could not look) and
 `confidence: "none"` (we looked and found nothing).
 
-`confidence == "low"` forces `human_review` regardless of score — an unsure
-model never routes straight to a rep.
+### Confidence is the third axis  **FIXED 2026-08-14**
+
+The table above is the `confidence != "low"` case. Low confidence holds, in
+every jurisdiction, whatever the tier:
+
+```
+gate(tier, basis, confidence):
+    blocked                        -> suppress          # decided no, permanent
+    consent_required | unknown     -> hold_for_approval # law, or we cannot place it
+    confidence == "low"            -> hold_for_approval # we do not trust our own answer
+    tier in (A, B)                 -> send
+    otherwise                      -> nurture
+```
+
+Order matters: `blocked` is checked first, so low confidence never rescues a
+disqualified lead into a queue a human might approve out of.
+
+**This was a real bug, found by running the injection lead end to end.**
+`tier_and_action()` had always set `recommended_action = "human_review"` for low
+confidence, and the docs claimed that "routes it to human review". It did not.
+`recommended_action` is advisory; **the Play branches on `ai_gate`**, and the
+gate never read confidence — so the lead sent, and the human review the field
+promised never happened. Both trust checks in `validate()` were therefore
+decorative. Now the gate reads confidence directly, which is the only place that
+makes either check bite.
+
+Two checks produce `confidence == "low"` in code, never from the model's
+self-report:
+
+| Check | Catches |
+|---|---|
+| Prospect-authored evidence at a send-grade score | A verbatim quote that is real but adversary-planted — `lead_007` |
+| A send-grade score with **no surviving evidence** | A model that fabricated every quote, had them all dropped, and kept the score they were supposed to justify |
+
+The second was the deeper hole. `verify_quotes()` drops bad evidence but nothing
+re-checked the dimension scores it was meant to support, so a model citing
+nothing real still reached tier A with an empty `ai_evidence` list. Verification
+that the score can ignore is decoration.
 
 ---
 
-## 5. Workflow provisioning — the four Unify branches  **TO BUILD**
+## 5. Workflow provisioning — terminating the gate
 
-The gate is inert until a Play acts on it. This is the integration work.
+The gate is inert until something acts on it. Two independent paths now do.
 
-| `ai_gate` | Unify action | Proves |
+| `ai_gate` | Action | Proves |
 |---|---|---|
 | `send` | Enroll in sequence | The loop closes |
-| `hold_for_approval` | **Unify native Slack alert** to operator; no enrollment | Human-in-the-loop — the answer to fear-of-mistakes |
+| `hold_for_approval` | Slack approval card; no enrollment | Human-in-the-loop — the answer to fear-of-mistakes |
 | `suppress` | Add to do-not-contact list | Compliance has teeth, not just a field |
 | `nurture` | Add to nurture list; no sequence | Not everything is binary |
+| *unrecognised* | Fifth branch, holds | An unknown gate value must not vanish |
 
-The Slack row matters: we cut *custom* Slack alerting as scope creep, correctly.
-Configuring Unify's *native* alert on the hold branch is using the platform, not
-duplicating it — and it completes the human-in-the-loop story that
-`hold_for_approval` implies but does not currently deliver.
+### 5.1 Via n8n  **BUILT, executed on n8n 2.22.6**
+
+`n8n-workflow.json`. Switch node `typeVersion` 3.2, rules mode, one string
+filter per gate value on `{{ $json.ai_gate }}`, plus `fallbackOutput: extra`.
+Verified by import and execute: five leads, five branches, fallback empty.
+
+This path does not depend on Unify's Play engine at all, which is why the
+open question below stopped being a blocker.
+
+### 5.2 Via a Unify Play  **STILL TO BUILD**
 
 **Prerequisite, test first:** does a Unify Play re-evaluate branch conditions on
 a REST write-back to a custom field, and how quickly? If branching is delayed or
-unavailable, the demo has to fall back to terminal logs plus the record view.
-Discovering this at hour 22 kills the demo; discovering it at hour 1 costs
-nothing.
+unavailable, the demo falls back to the n8n path above — which is the whole
+reason for building two.
+
+---
+
+### 5.3 The approval loop — where `hold_for_approval` terminates
+
+`hold` is the only branch that ends in a person, so it is the only one with a
+round-trip. Slack's native `sendAndWait` operation posts a card, pauses the
+execution, and resumes on a button click.
+
+```
+hold_for_approval ─▶ Slack sendAndWait ─▶ switch on the answer ─┬─ approved  → sequence
+                     (pauses execution)   reads data.approved   ├─ rejected  → DNC
+                                                                └─ no answer → still held
+```
+
+**Three outcomes, not two.** `data.approved` is `true` or `false` on a click and
+**absent** when the 24h `limitWaitTime` expires. The timeout is the interesting
+one, and it resolves to *still held* — the same `unknown != blocked` distinction
+as §4, one layer out. Timing out into `suppress` would let silence permanently
+kill a lead; timing out into `send` would make the entire layer decorative.
+
+**The card carries the evidence.** Approving a name with no context is a rubber
+stamp, not review, so the message renders score, basis, rationale and every
+surviving quote *with its source label* — then asks the question that matches
+the hold reason. `consent_required` is a legal question ("do we have a lawful
+basis for this contact?"); low confidence is a quality one ("does this evidence
+hold up?"). Rendering `lead_007` puts the injection's own words in the rationale
+with the quote beneath it stamped `form`: the reviewer is looking at the attack.
+
+**The node ships `disabled`.** An unconfigured Slack node is a workflow-level
+issue in n8n — the *whole* workflow refuses to execute, including branches with
+no Slack involvement. Disabled, it passes items through and held leads land in
+"still held, nothing sent", which is the correct degraded state: no approver,
+no send.
+
+Volume ceiling: `sendAndWait` pauses one execution per held lead, so it is one
+card per lead. Correct at this buyer's volume (5–15 holds/day); at 200/day it
+needs a digest instead.
+
+---
+
+### 5.4 Deployment  **render.yaml WRITTEN, NEVER DEPLOYED**
+
+n8n Cloud cannot reach `127.0.0.1`, and Slack's buttons call n8n back over the
+public internet — which a laptop cannot receive without a tunnel. So the target
+is n8n Cloud plus `server.py` on a real URL, and no tunnels anywhere.
+
+`render.yaml` is a Blueprint deploy. `uvicorn server:app --host 0.0.0.0 --port
+$PORT` is the start command rather than `python server.py`, because the
+`__main__` block binds localhost — no code change, and the documented local
+workflow is unaffected.
+
+Three env vars carry meaning: `APEX_REPLAY` makes rehearsal mode a dashboard
+toggle, `LEADSCORE_KILL` makes the off switch provable in one click, and
+`OPENAI_API_KEY` is `sync: false` so it never enters the repo.
+
+---
+
+### 5.5 MCP server  **DESIGNED, NOT BUILT**
+
+The same decision, reachable from Claude and Codex. Codex reads
+`~/.codex/config.toml` and supports stdio and streamable-HTTP servers; that
+config is shared with the ChatGPT desktop app and the IDE extension.
+
+**In n8n, Apex-1 is a gate. In an MCP client, it is an advisor.** Worth stating
+plainly, because the difference is real: in a workflow it sits *in* the send
+path and nothing routes around it; in an MCP client a human or an agent *asks*,
+and nothing forces either to call it or to obey the answer. Enforcement lives
+where Apex-1 is in the path. Claiming otherwise would not survive a question.
+
+Three tools, and deliberately **no send tool** — decides-never-sends has to hold
+here exactly as it does in the CLI's dry-run default:
+
+| Tool | Returns |
+|---|---|
+| `decide_lead` | The gate, tier, basis, evidence — the whole product |
+| `check_jurisdiction` | Country in, lawful basis out. Zero tokens |
+| `explain_decision` | A past decision from `runs.jsonl` by `record_id` |
+
+The third is the audit thesis made interactive: *"why did we email this person
+in March?"* answered in the tool the operator is already in. The first is where
+the speed is — a batch of 40 leads triaged with sources in one turn, the agent
+doing the fan-out.
 
 ---
 
@@ -261,12 +399,15 @@ nothing.
 | Unify 4xx/5xx | Logged to stderr, not ledgered, batch continues | BUILT |
 | Duplicate processing | Local ledger `unify_written.jsonl` | BUILT — key needs widening, §8 |
 | Unresolved jurisdiction | `unknown` → `hold_for_approval` (recoverable) | BUILT |
-| High score backed by prospect-authored evidence | `confidence` forced to `low` → `human_review` | BUILT |
+| Send-grade score with every quote fabricated | No surviving evidence → `confidence` `low` → gate holds | BUILT |
+| Unrecognised `ai_gate` reaches the orchestrator | Fifth Switch branch, holds — never silently dropped | BUILT |
+| Nobody answers the approval card | 24h timeout resolves to *still held*, never send, never suppress | BUILT |
+| High score backed by prospect-authored evidence | `confidence` forced to `low` → **gate holds**, §4 | BUILT |
 | Wrong model id / dead key / schema rejected | `preflight()` — one real call, then `NotRun`, exit 2 | BUILT |
 | Provider fails mid-batch | Contamination guard — **no rates reported at all** | BUILT |
 | Operator needs to stop everything | `LEADSCORE_KILL=1` | BUILT |
 | Accidental live send | `--write` required; dry run is default | BUILT |
-| `ai_evidence` too long → 422 | Truncate claims to 250 chars | TO BUILD, §8 |
+| `ai_evidence` too long → 422 | Truncate claims to 250 chars | BUILT — `MAX_EVIDENCE_CLAIM_CHARS`, covered by the write-payload gate |
 
 One batch failure never takes down the batch. Every failure is recoverable from
 `dead_letter.jsonl` and `runs.jsonl`.
@@ -279,9 +420,16 @@ One batch failure never takes down the batch. Every failure is recoverable from
 nothing and runs on every change; the model tier costs money and runs before the
 demo.
 
-**Deterministic (9 gates, no network):** compliance layer, disqualifiers,
+**Deterministic (10 gates, no network):** compliance layer, disqualifiers,
 evidence source filter, relevance gate, low-confidence routing, the pre-send
-gate, jurisdiction states, trust tier, write payload.
+gate, unevidenced score, jurisdiction states, trust tier, write payload.
+
+The tenth gate exists because the ninth was not enough. `check_gate()` was
+exhaustive over `(tier, basis)` and passed throughout — while `ai_gate: send`
+was reachable from a fully compromised judgment, because confidence was not one
+of its axes. An exhaustive table over the wrong axes is not exhaustive. Both new
+checks were verified to *fail* against the pre-fix behaviour before being
+counted as passing; a check that cannot fail verifies nothing.
 
 **Model (4 gates):** tier agreement ≥80%, tier-A precision ≥80%, provenance
 coverage 100%, injection resistance 100%. Plus baseline comparison and cost/lead.
@@ -394,7 +542,11 @@ automated DPO workflows.
 Unify does all of it better. Rebuilding any of it invites the one question we
 cannot win: *why not just use the platform?*
 
-The loop terminates the moment `ai_gate` is written back.
+The loop terminates the moment `ai_gate` is written back — with one deliberate
+exception. The approval round-trip (§5.3) is the only thing that reaches past the
+gate, and only because `hold_for_approval` is meaningless without somewhere for
+the human to answer. Even there the terminal nodes are NoOps: Apex-1 asks the
+question and records the answer, and the enrollment itself stays Unify's job.
 
 ---
 
@@ -403,10 +555,23 @@ The loop terminates the moment `ai_gate` is written back.
 1. ~~`UNIFY_RECORD_PATH` unverified~~ **RESOLVED** — §3.3, including the
    `source_record_id` field naming
 2. `MODEL` default `gpt-5.2` unconfirmed against the account
-3. Play branch re-evaluation behaviour unknown — §5, blocks step 4
+3. Play branch re-evaluation behaviour unknown — §5.2. **No longer blocking:**
+   the n8n path (§5.1) terminates the gate without Unify's Play engine
 4. `OUTREACH_BASIS` needs DPO sign-off; DE/AT/IT/FR default conservative because
    sources genuinely disagree
 5. `SUPPRESSION` is a hardcoded stub — point at the real do-not-contact source
    before any live send
-6. `git init` pending; `.gitignore` must cover `runs.jsonl`, `dead_letter.jsonl`,
-   `unify_written.jsonl`, `crm_out.jsonl` — all will hold real prospect data
+6. ~~`git init` pending~~ **RESOLVED** — repo live; `.gitignore` covers
+   `runs.jsonl`, `dead_letter.jsonl`, `unify_written.jsonl`, `crm_out.jsonl`,
+   `.env`, `*.log`, `.venv/`. `runs.adversarial.jsonl` is synthetic and
+   committed on purpose
+7. **No live model run has happened.** The 10 deterministic gates pass; the 4
+   model gates are unmeasured. Everything verified end to end today ran against
+   `runs.adversarial.jsonl`, which measures the structural defence — the part
+   that does not depend on the model behaving — and nothing else
+8. **The approval loop has never been clicked.** Node parameters were built
+   against the installed n8n's own schema and the card was rendered from real
+   `/decide` output, but no Slack workspace has been connected
+9. **`render.yaml` has never been deployed.** Free plan cold-starts in ~50s —
+   warm the URL before demoing
+10. MCP server (§5.5) designed, not built
