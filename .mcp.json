@@ -2,8 +2,8 @@
   "mcpServers": {
     "apex-1": {
       "type": "stdio",
-      "command": ".venv/bin/python",
-      "args": ["mcp_server.py"],
+      "command": "/Users/ajinkyagajananraochintawar/GTM Hackathon/apex-1/.venv/bin/python",
+      "args": ["/Users/ajinkyagajananraochintawar/GTM Hackathon/apex-1/mcp_server.py"],
       "env": {
         "APEX_URL": "https://apex-1-bi2t.onrender.com"
       }
