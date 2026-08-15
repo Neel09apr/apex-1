@@ -1,19 +1,65 @@
-[{
-  "record_id": "uberall_real",
-  "email": "stephanie.genin@uberall.com",
-  "company":    {"value": "Uberall", "source": "unify:agent", "fetched_at": "2026-08-15T13:59:12Z"},
-  "domain":     {"value": "uberall.com", "source": "unify:agent", "fetched_at": "2026-08-15T13:59:12Z"},
-  "country":    {"value": "DE", "source": "unify:agent", "fetched_at": "2026-08-15T13:59:12Z"},
-  "employees":  {"value": 375, "source": "unify:agent", "fetched_at": "2026-08-15T13:59:12Z"},
-  "industry":   {"value": "Software Development", "source": "unify:agent", "fetched_at": "2026-08-15T13:59:12Z"},
-  "tech_stack": {"value": [], "source": "unify:agent", "fetched_at": "2026-08-15T13:59:12Z"},
-  "funding":    {"value": null, "source": "unify:agent", "fetched_at": "2026-08-15T13:59:12Z"},
-  "title":      {"value": "Chief Marketing Officer", "source": "unify:agent", "fetched_at": "2026-08-15T13:59:12Z"},
-  "signals": [
-    {"value": "Open role: Product Marketing Manager (m/f/d), posted 2026-07-22", "source": "jobs:linkedin", "fetched_at": "2026-08-15T13:59:12Z"}
-  ],
-  "engagement": {"value": "No first-party activity recorded", "source": "firstparty:analytics", "fetched_at": "2026-08-15T13:59:12Z"},
-  "notes":      {"value": "Sourced live by the Unify agent, 2026-08-15, on a last-90-days hiring trigger.", "source": "internal", "fetched_at": "2026-08-15T13:59:12Z"},
-  "is_customer": false,
-  "has_open_opp": false
-}]
+[
+  {
+    "record_id": "uberall_real",
+    "email": "redacted@uberall.com",
+    "company": {
+      "value": "Uberall",
+      "source": "unify:agent",
+      "fetched_at": "2026-08-15T13:59:12Z"
+    },
+    "domain": {
+      "value": "uberall.com",
+      "source": "unify:agent",
+      "fetched_at": "2026-08-15T13:59:12Z"
+    },
+    "country": {
+      "value": "DE",
+      "source": "unify:agent",
+      "fetched_at": "2026-08-15T13:59:12Z"
+    },
+    "employees": {
+      "value": 375,
+      "source": "unify:agent",
+      "fetched_at": "2026-08-15T13:59:12Z"
+    },
+    "industry": {
+      "value": "Software Development",
+      "source": "unify:agent",
+      "fetched_at": "2026-08-15T13:59:12Z"
+    },
+    "tech_stack": {
+      "value": [],
+      "source": "unify:agent",
+      "fetched_at": "2026-08-15T13:59:12Z"
+    },
+    "funding": {
+      "value": null,
+      "source": "unify:agent",
+      "fetched_at": "2026-08-15T13:59:12Z"
+    },
+    "title": {
+      "value": "Chief Marketing Officer",
+      "source": "unify:agent",
+      "fetched_at": "2026-08-15T13:59:12Z"
+    },
+    "signals": [
+      {
+        "value": "Open role: Product Marketing Manager (m/f/d), posted 2026-07-22",
+        "source": "jobs:linkedin",
+        "fetched_at": "2026-08-15T13:59:12Z"
+      }
+    ],
+    "engagement": {
+      "value": "No first-party activity recorded",
+      "source": "firstparty:analytics",
+      "fetched_at": "2026-08-15T13:59:12Z"
+    },
+    "notes": {
+      "value": "Sourced live by the Unify agent, 2026-08-15, on a last-90-days hiring trigger. Contact's real work email redacted: this file is committed to a public repo and the lead is a real, named person.",
+      "source": "internal",
+      "fetched_at": "2026-08-15T13:59:12Z"
+    },
+    "is_customer": false,
+    "has_open_opp": false
+  }
+]
