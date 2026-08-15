@@ -8,7 +8,10 @@
       "name": "When clicking \"Execute workflow\"",
       "type": "n8n-nodes-base.manualTrigger",
       "typeVersion": 1,
-      "position": [-220, 300]
+      "position": [
+        -220,
+        300
+      ]
     },
     {
       "parameters": {
@@ -18,7 +21,10 @@
       "name": "Unify signal (5 leads, incl. the injection)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [0, 300]
+      "position": [
+        0,
+        300
+      ]
     },
     {
       "parameters": {
@@ -33,7 +39,10 @@
       "name": "Apex-1: Decide",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [220, 300]
+      "position": [
+        220,
+        300
+      ]
     },
     {
       "parameters": {
@@ -52,7 +61,10 @@
                     "id": "rule-send",
                     "leftValue": "={{ $json.ai_gate }}",
                     "rightValue": "send",
-                    "operator": { "type": "string", "operation": "equals" }
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
                   }
                 ],
                 "combinator": "and"
@@ -73,7 +85,10 @@
                     "id": "rule-hold",
                     "leftValue": "={{ $json.ai_gate }}",
                     "rightValue": "hold_for_approval",
-                    "operator": { "type": "string", "operation": "equals" }
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
                   }
                 ],
                 "combinator": "and"
@@ -94,7 +109,10 @@
                     "id": "rule-suppress",
                     "leftValue": "={{ $json.ai_gate }}",
                     "rightValue": "suppress",
-                    "operator": { "type": "string", "operation": "equals" }
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
                   }
                 ],
                 "combinator": "and"
@@ -115,7 +133,10 @@
                     "id": "rule-nurture",
                     "leftValue": "={{ $json.ai_gate }}",
                     "rightValue": "nurture",
-                    "operator": { "type": "string", "operation": "equals" }
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
                   }
                 ],
                 "combinator": "and"
@@ -134,7 +155,10 @@
       "name": "Branch on ai_gate",
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3.2,
-      "position": [460, 300]
+      "position": [
+        460,
+        300
+      ]
     },
     {
       "parameters": {},
@@ -142,7 +166,10 @@
       "name": "Enroll in sequence",
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
-      "position": [720, 60]
+      "position": [
+        720,
+        60
+      ]
     },
     {
       "parameters": {
@@ -155,8 +182,8 @@
           "value": "",
           "cachedResultName": ""
         },
-        "subject": "={{ $json.source_record_id }} held — {{ $json.ai_basis === 'consent_required' ? 'lawful basis check' : 'judgment check' }}",
-        "message": "=*{{ $json.source_record_id }}* — tier {{ $json.ai_tier }}, score {{ $json.ai_score }}\n{{ $json.ai_jurisdiction }} · basis: `{{ $json.ai_basis }}` · confidence: `{{ $json.ai_confidence }}`\n\n{{ $json.ai_rationale }}\n\n{{ ($json.ai_evidence || []).length ? ($json.ai_evidence).map(e => '> \"' + e.quote + '\"\\n>     — ' + e.source).join('\\n') : '> _No evidence survived verification._' }}\n\n*{{ $json.ai_basis === 'consent_required' ? 'Held because ' + $json.ai_jurisdiction + ' requires consent for B2B outreach. Do we have a lawful basis to email this contact?' : 'Held because the judgment rests on evidence the system does not trust — check the source labels above. Does this hold up?' }}*",
+        "subject": "={{ $json.source_record_id }} held \u2014 {{ $json.ai_basis === 'consent_required' ? 'lawful basis check' : 'judgment check' }}",
+        "message": "=*{{ $json.source_record_id }}* \u2014 tier {{ $json.ai_tier }}, score {{ $json.ai_score }}\n{{ $json.ai_jurisdiction }} \u00b7 basis: `{{ $json.ai_basis }}` \u00b7 confidence: `{{ $json.ai_confidence }}`\n\n{{ $json.ai_rationale }}\n\n{{ ($json.ai_evidence || []).length ? ($json.ai_evidence).map(e => '> \"' + e.quote + '\"\\n>     \u2014 ' + e.source).join('\\n') : '> _No evidence survived verification._' }}\n\n*{{ $json.ai_basis === 'consent_required' ? 'Held because ' + $json.ai_jurisdiction + ' requires consent for B2B outreach. Do we have a lawful basis to email this contact?' : 'Held because the judgment rests on evidence the system does not trust \u2014 check the source labels above. Does this hold up?' }}*\\n\\n_Approve enrolls this person in a live sequence. Reject adds them to do-not-contact permanently._",
         "responseType": "approval",
         "approvalOptions": {
           "values": {
@@ -181,7 +208,10 @@
       "name": "Ask a human (Slack)",
       "type": "n8n-nodes-base.slack",
       "typeVersion": 2.3,
-      "position": [720, 220],
+      "position": [
+        720,
+        220
+      ],
       "disabled": true,
       "notes": "Disabled on purpose so the workflow imports and runs with no Slack credential. Connect a Slack credential, pick the channel, then enable. While disabled the node passes items straight through and every held lead lands in 'No answer - still held' -- which is the correct degraded behaviour: no approver, no send."
     },
@@ -202,7 +232,10 @@
                     "id": "answer-approved",
                     "leftValue": "={{ $json.data?.approved === true ? 'approved' : ($json.data?.approved === false ? 'rejected' : 'no_answer') }}",
                     "rightValue": "approved",
-                    "operator": { "type": "string", "operation": "equals" }
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
                   }
                 ],
                 "combinator": "and"
@@ -223,7 +256,10 @@
                     "id": "answer-rejected",
                     "leftValue": "={{ $json.data?.approved === true ? 'approved' : ($json.data?.approved === false ? 'rejected' : 'no_answer') }}",
                     "rightValue": "rejected",
-                    "operator": { "type": "string", "operation": "equals" }
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
                   }
                 ],
                 "combinator": "and"
@@ -242,7 +278,10 @@
       "name": "Branch on the answer",
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3.2,
-      "position": [960, 220]
+      "position": [
+        960,
+        220
+      ]
     },
     {
       "parameters": {},
@@ -250,7 +289,10 @@
       "name": "Approved - enroll in sequence",
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
-      "position": [1200, 120]
+      "position": [
+        1200,
+        120
+      ]
     },
     {
       "parameters": {},
@@ -258,7 +300,10 @@
       "name": "Rejected - add to do-not-contact",
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
-      "position": [1200, 260]
+      "position": [
+        1200,
+        260
+      ]
     },
     {
       "parameters": {},
@@ -266,7 +311,10 @@
       "name": "No answer - still held, nothing sent",
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
-      "position": [1200, 400]
+      "position": [
+        1200,
+        400
+      ]
     },
     {
       "parameters": {},
@@ -274,7 +322,10 @@
       "name": "Add to do-not-contact",
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
-      "position": [720, 380]
+      "position": [
+        720,
+        380
+      ]
     },
     {
       "parameters": {},
@@ -282,7 +333,10 @@
       "name": "Add to nurture list",
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
-      "position": [720, 540]
+      "position": [
+        720,
+        540
+      ]
     },
     {
       "parameters": {},
@@ -290,36 +344,119 @@
       "name": "Hold - unknown gate value",
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
-      "position": [720, 700]
+      "position": [
+        720,
+        700
+      ]
     }
   ],
   "connections": {
     "When clicking \"Execute workflow\"": {
-      "main": [[{ "node": "Unify signal (5 leads, incl. the injection)", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Unify signal (5 leads, incl. the injection)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Unify signal (5 leads, incl. the injection)": {
-      "main": [[{ "node": "Apex-1: Decide", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Apex-1: Decide",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Apex-1: Decide": {
-      "main": [[{ "node": "Branch on ai_gate", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Branch on ai_gate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Branch on ai_gate": {
       "main": [
-        [{ "node": "Enroll in sequence", "type": "main", "index": 0 }],
-        [{ "node": "Ask a human (Slack)", "type": "main", "index": 0 }],
-        [{ "node": "Add to do-not-contact", "type": "main", "index": 0 }],
-        [{ "node": "Add to nurture list", "type": "main", "index": 0 }],
-        [{ "node": "Hold - unknown gate value", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "Enroll in sequence",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Ask a human (Slack)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Add to do-not-contact",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Add to nurture list",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Hold - unknown gate value",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "Ask a human (Slack)": {
-      "main": [[{ "node": "Branch on the answer", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Branch on the answer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Branch on the answer": {
       "main": [
-        [{ "node": "Approved - enroll in sequence", "type": "main", "index": 0 }],
-        [{ "node": "Rejected - add to do-not-contact", "type": "main", "index": 0 }],
-        [{ "node": "No answer - still held, nothing sent", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "Approved - enroll in sequence",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Rejected - add to do-not-contact",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No answer - still held, nothing sent",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     }
   },
